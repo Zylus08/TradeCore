@@ -21,8 +21,15 @@ TEST(ITCHParserTest, ParseAddOrder) {
     std::vector<std::byte> buffer(sizeof(AddOrderMsg));
     std::memcpy(buffer.data(), &msg, sizeof(AddOrderMsg));
 
+    alignas(64) std::byte arena_buf[1024];
+    tradecore::memory::ArenaAllocator arena(sizeof(arena_buf), arena_buf);
+    TimestampSource time_src;
+    SymbolTable sym_tab;
+    Statistics stats;
+    ParserContext ctx{arena, time_src, sym_tab, stats};
+
     ITCHParser parser;
-    auto result = parser.parse(buffer);
+    auto result = parser.parse(ctx, buffer);
     
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->type, UpdateType::AddOrder);
@@ -35,8 +42,15 @@ TEST(ITCHParserTest, ParseAddOrder) {
 TEST(ITCHParserTest, ParseUnhandled) {
     std::vector<std::byte> buffer = { std::byte{'Z'}, std::byte{0x00} }; // Unknown type 'Z'
     
+    alignas(64) std::byte arena_buf[1024];
+    tradecore::memory::ArenaAllocator arena(sizeof(arena_buf), arena_buf);
+    TimestampSource time_src;
+    SymbolTable sym_tab;
+    Statistics stats;
+    ParserContext ctx{arena, time_src, sym_tab, stats};
+
     ITCHParser parser;
-    auto result = parser.parse(buffer);
+    auto result = parser.parse(ctx, buffer);
     
     EXPECT_FALSE(result.has_value());
 }
