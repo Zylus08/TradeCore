@@ -58,7 +58,8 @@ public:
         if (!result.ok) return result;
 
         // 4. No duplicate order IDs + every order belongs to exactly one level
-        check_order_uniqueness(bid_levels, ask_levels, order_pool, result);
+        //    (orphaned: in map but no level; ghost: in level but not in map)
+        check_order_uniqueness(bid_levels, ask_levels, order_pool, order_map, result);
         if (!result.ok) return result;
 
         // 5. Price level quantity == sum(order.remaining_qty)
@@ -66,7 +67,7 @@ public:
         check_level_quantities(ask_levels, order_pool, result);
         if (!result.ok) return result;
 
-        // 6. Order count matches hash map
+        // 6. Hash map pointer validity
         check_order_map_consistency(bid_levels, ask_levels, order_pool, order_map, result);
         if (!result.ok) return result;
 
@@ -126,8 +127,11 @@ private:
         std::span<const PriceLevel> bid_levels,
         std::span<const PriceLevel> ask_levels,
         std::span<const Order> order_pool,
+        const std::unordered_map<uint64_t, uint32_t>& order_map,
         VerificationResult& result)
     {
+        // Pass 1: Walk all levels, collecting every pool index that
+        //         appears in at least one level's linked list.
         std::unordered_set<uint64_t> seen_ids;
         std::unordered_set<uint32_t> seen_pool_indices;
 
@@ -159,6 +163,30 @@ private:
         };
         walk(bid_levels);
         walk(ask_levels);
+
+        if (!result.ok) return;
+
+        // Pass 2: Every pool slot referenced by the hash map must appear
+        //         in exactly one level (caught above) AND in at least one
+        //         level. Slots in the map but absent from all level lists
+        //         are orphaned orders — a leaked reference.
+        for (const auto& [id, pool_idx] : order_map) {
+            if (seen_pool_indices.find(pool_idx) == seen_pool_indices.end()) {
+                result.fail("Order in hash map belongs to no price level (orphaned)");
+                return;
+            }
+        }
+
+        // Pass 3: Every pool index reached by walking levels must be in
+        //         the hash map. If not, the level's list contains a ghost
+        //         entry that the book has already lost track of.
+        for (uint32_t pool_idx : seen_pool_indices) {
+            const uint64_t oid = order_pool[pool_idx].order_id;
+            if (order_map.find(oid) == order_map.end()) {
+                result.fail("Order reachable from price level is absent from hash map (ghost)");
+                return;
+            }
+        }
     }
 
     static void check_level_quantities(

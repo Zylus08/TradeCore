@@ -9,6 +9,7 @@ add_executable(tradecore_tests
     unit/network/test_moldudp64.cpp
     unit/parser/test_itch_parser.cpp
     unit/orderbook/test_order_book_verifier.cpp
+    unit/orderbook/test_book_snapshot.cpp
 )
 
 target_link_libraries(tradecore_tests PRIVATE tradecore gtest_main)

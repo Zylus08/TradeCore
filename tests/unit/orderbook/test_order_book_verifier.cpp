@@ -128,3 +128,48 @@ TEST(OrderBookVerifierTest, DuplicateOrderId) {
     EXPECT_FALSE(res.ok);
     EXPECT_EQ(res.first_failure, "Duplicate order_id detected");
 }
+
+// --- Orphaned Order: in map, in no level ---
+// Simulates a bug where cancel removes an order from the level's linked list
+// but forgets to erase it from the hash map.
+TEST(OrderBookVerifierTest, OrphanedOrder) {
+    std::vector<PriceLevel> bids = { make_level(100, 100, 1, 0, 0) };
+    std::vector<PriceLevel> asks;
+
+    std::vector<Order> pool = {
+        make_order(1, 100, 100, 100, 0), // pool[0]: in bid level, OK
+        make_order(2, 101, 100, 50,  0), // pool[1]: NOT in any level
+    };
+    // Map incorrectly still references pool[1]
+    std::unordered_map<uint64_t, uint32_t> map = {{1, 0}, {2, 1}};
+
+    auto res = OrderBookVerifier::verify(bids, asks, pool, map,
+                                         kInvalidPoolIndex, kInvalidPoolIndex,
+                                         kInvalidPoolIndex, kInvalidPoolIndex);
+    EXPECT_FALSE(res.ok);
+    EXPECT_EQ(res.first_failure, "Order in hash map belongs to no price level (orphaned)");
+}
+
+// --- Ghost Order: reachable from a level, absent from map ---
+// Simulates a bug where add_order inserts into a level's linked list
+// but forgets to register the order in the hash map.
+TEST(OrderBookVerifierTest, GhostOrder) {
+    std::vector<Order> pool(2);
+    pool[0] = make_order(1, 100, 100, 100, 0, 1); // head, points to pool[1]
+    pool[1] = make_order(2, 101, 100, 50,  0);    // tail, ghost: not in map
+
+    std::vector<PriceLevel> bids = { make_level(100, 150, 2, 0, 0) };
+    bids[0].tail_order_idx = 1;
+    std::vector<PriceLevel> asks;
+
+    // Map only knows about order 1, not order 2
+    std::unordered_map<uint64_t, uint32_t> map = {{1, 0}};
+
+    auto res = OrderBookVerifier::verify(bids, asks, pool, map,
+                                         kInvalidPoolIndex, kInvalidPoolIndex,
+                                         kInvalidPoolIndex, kInvalidPoolIndex);
+    EXPECT_FALSE(res.ok);
+    EXPECT_EQ(res.first_failure,
+              "Order reachable from price level is absent from hash map (ghost)");
+}
+
