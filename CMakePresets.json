@@ -1,0 +1,43 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "debug",
+      "binaryDir": "build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRADECORE_BUILD_TESTS": "ON",
+        "TRADECORE_BUILD_BENCHMARKS": "OFF"
+      }
+    },
+    {
+      "name": "release",
+      "binaryDir": "build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "TRADECORE_BUILD_TESTS": "ON",
+        "TRADECORE_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
+      "name": "sanitize-asan",
+      "binaryDir": "build-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRADECORE_ENABLE_ASAN": "ON",
+        "TRADECORE_ENABLE_UBSAN": "ON",
+        "TRADECORE_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "sanitize-tsan",
+      "binaryDir": "build-tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRADECORE_ENABLE_TSAN": "ON",
+        "TRADECORE_BUILD_TESTS": "ON"
+      }
+    }
+  ]
+}
