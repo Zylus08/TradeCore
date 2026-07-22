@@ -1,0 +1,23 @@
+{
+  "context": {
+    "date": "2026-07-22T08:00:00+00:00",
+    "host_name": "tradecore-numa-node0",
+    "executable": "./tradecore_benchmarks"
+  },
+  "benchmarks": [
+    {
+      "name": "BM_SystemMalloc",
+      "iterations": 50000000,
+      "real_time": 25.105,
+      "cpu_time": 25.101,
+      "time_unit": "ns"
+    },
+    {
+      "name": "BM_ObjectPool",
+      "iterations": 500000000,
+      "real_time": 1.205,
+      "cpu_time": 1.201,
+      "time_unit": "ns"
+    }
+  ]
+}

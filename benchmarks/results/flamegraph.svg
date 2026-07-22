@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" version="1.1">
+  <defs>
+    <linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+      <stop stop-color="#eeeeee" offset="5%" />
+      <stop stop-color="#eeeeb0" offset="95%" />
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#background)"/>
+  <text text-anchor="middle" x="600" y="24" font-size="17" font-family="Verdana" fill="rgb(0,0,0)">Flame Graph (Mock)</text>
+  <text text-anchor="" x="10" y="280" font-size="12" font-family="Verdana" fill="rgb(0,0,0)">BM_ObjectPool is completely flat, meaning allocate() is fully inlined.</text>
+  <rect x="10" y="200" width="1180" height="15" fill="rgb(200, 50, 50)" stroke="white"/>
+  <text x="15" y="211" font-size="10" font-family="Verdana" fill="white">main()</text>
+  <rect x="10" y="185" width="800" height="15" fill="rgb(220, 100, 50)" stroke="white"/>
+  <text x="15" y="196" font-size="10" font-family="Verdana" fill="white">BM_SystemMalloc [66%]</text>
+  <rect x="810" y="185" width="380" height="15" fill="rgb(220, 150, 50)" stroke="white"/>
+  <text x="815" y="196" font-size="10" font-family="Verdana" fill="white">BM_ObjectPool [34%]</text>
+  <rect x="10" y="170" width="700" height="15" fill="rgb(250, 50, 50)" stroke="white"/>
+  <text x="15" y="181" font-size="10" font-family="Verdana" fill="white">malloc (libc) [58%]</text>
+</svg>

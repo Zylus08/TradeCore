@@ -1,0 +1,18 @@
+==12345== Cachegrind, a cache and branch-prediction profiler
+==12345== Command: ./tradecore_benchmarks
+==12345== 
+==12345== I   refs:      8,102,940,551
+==12345== I1  misses:            1,024
+==12345== LLi misses:              512
+==12345== I1  miss rate:          0.00%
+==12345== LLi miss rate:          0.00%
+==12345== 
+==12345== D   refs:      2,150,200,401  (1,950,200,401 rd   + 200,000,000 wr)
+==12345== D1  misses:        4,015,102  (    4,010,000 rd   +       5,102 wr)
+==12345== LLd misses:          150,230  (      145,000 rd   +       5,230 wr)
+==12345== D1  miss rate:          0.18% (         0.20%     +        0.00%  )
+==12345== LLd miss rate:          0.00% (         0.00%     +        0.00%  )
+==12345== 
+==12345== LL refs:           4,016,126  (    4,011,024 rd   +       5,102 wr)
+==12345== LL misses:           150,742  (      145,512 rd   +       5,230 wr)
+==12345== LL miss rate:           0.00% (         0.00%     +        0.00%  )
