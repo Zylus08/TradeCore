@@ -8,6 +8,7 @@ add_executable(tradecore_tests
     unit/lockfree/test_mpsc_queue.cpp
     unit/network/test_moldudp64.cpp
     unit/parser/test_itch_parser.cpp
+    unit/orderbook/test_order_book_verifier.cpp
 )
 
 target_link_libraries(tradecore_tests PRIVATE tradecore gtest_main)
