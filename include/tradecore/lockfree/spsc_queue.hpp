@@ -26,57 +26,57 @@ public:
     SPSCQueue& operator=(const SPSCQueue&) = delete;
 
     [[nodiscard]] bool push(const T& item) noexcept {
-        const auto current_tail = tail_.load(std::memory_order_relaxed);
+        const auto current_tail = producer_.tail.load(std::memory_order_relaxed);
         const auto next_tail = current_tail + 1;
 
-        if (TRADECORE_UNLIKELY(next_tail - head_cached_ > Capacity)) {
+        if (TRADECORE_UNLIKELY(next_tail - producer_.head_cached > Capacity)) {
             // Cache is invalid or queue is actually full, load actual head
-            head_cached_ = head_.load(std::memory_order_acquire);
-            if (next_tail - head_cached_ > Capacity) {
+            producer_.head_cached = consumer_.head.load(std::memory_order_acquire);
+            if (next_tail - producer_.head_cached > Capacity) {
                 return false; // Queue full
             }
         }
 
         buffer_[current_tail & (Capacity - 1)] = item;
-        tail_.store(next_tail, std::memory_order_release);
+        producer_.tail.store(next_tail, std::memory_order_release);
         return true;
     }
 
     [[nodiscard]] bool push(T&& item) noexcept {
-        const auto current_tail = tail_.load(std::memory_order_relaxed);
+        const auto current_tail = producer_.tail.load(std::memory_order_relaxed);
         const auto next_tail = current_tail + 1;
 
-        if (TRADECORE_UNLIKELY(next_tail - head_cached_ > Capacity)) {
-            head_cached_ = head_.load(std::memory_order_acquire);
-            if (next_tail - head_cached_ > Capacity) {
+        if (TRADECORE_UNLIKELY(next_tail - producer_.head_cached > Capacity)) {
+            producer_.head_cached = consumer_.head.load(std::memory_order_acquire);
+            if (next_tail - producer_.head_cached > Capacity) {
                 return false;
             }
         }
 
         buffer_[current_tail & (Capacity - 1)] = std::move(item);
-        tail_.store(next_tail, std::memory_order_release);
+        producer_.tail.store(next_tail, std::memory_order_release);
         return true;
     }
 
     [[nodiscard]] bool pop(T& item) noexcept {
-        const auto current_head = head_.load(std::memory_order_relaxed);
+        const auto current_head = consumer_.head.load(std::memory_order_relaxed);
 
-        if (TRADECORE_UNLIKELY(current_head == tail_cached_)) {
+        if (TRADECORE_UNLIKELY(current_head == consumer_.tail_cached)) {
             // Cache is invalid or queue is actually empty, load actual tail
-            tail_cached_ = tail_.load(std::memory_order_acquire);
-            if (current_head == tail_cached_) {
+            consumer_.tail_cached = producer_.tail.load(std::memory_order_acquire);
+            if (current_head == consumer_.tail_cached) {
                 return false; // Queue empty
             }
         }
 
         item = std::move(buffer_[current_head & (Capacity - 1)]);
-        head_.store(current_head + 1, std::memory_order_release);
+        consumer_.head.store(current_head + 1, std::memory_order_release);
         return true;
     }
 
     [[nodiscard]] std::size_t size() const noexcept {
-        const auto t = tail_.load(std::memory_order_acquire);
-        const auto h = head_.load(std::memory_order_acquire);
+        const auto t = producer_.tail.load(std::memory_order_acquire);
+        const auto h = consumer_.head.load(std::memory_order_acquire);
         return static_cast<std::size_t>(t - h);
     }
 
@@ -84,16 +84,24 @@ public:
         return size() == 0;
     }
 
-private:
-    // Prevent false sharing by putting head and tail on different cache lines
-    alignas(kCacheLineSize) std::atomic<std::size_t> tail_{0};
-    alignas(kCacheLineSize) std::size_t head_cached_{0};
+    // To prevent false sharing, we strictly segregate the producer's mutation state 
+    // from the consumer's mutation state into distinct structs aligned to the hardware 
+    // destructive interference size.
 
-    alignas(kCacheLineSize) std::atomic<std::size_t> head_{0};
-    alignas(kCacheLineSize) std::size_t tail_cached_{0};
+    struct alignas(kHardwareDestructiveInterferenceSize) ProducerState {
+        std::atomic<std::size_t> tail{0};
+        std::size_t head_cached{0};
+    };
 
-    // Buffer can be large, we use std::vector but allocate it upfront
-    alignas(kCacheLineSize) std::vector<T> buffer_;
+    struct alignas(kHardwareDestructiveInterferenceSize) ConsumerState {
+        std::atomic<std::size_t> head{0};
+        std::size_t tail_cached{0};
+    };
+
+    ProducerState producer_;
+    ConsumerState consumer_;
+
+    alignas(kHardwareDestructiveInterferenceSize) std::vector<T> buffer_;
 };
 
 } // namespace tradecore::lockfree

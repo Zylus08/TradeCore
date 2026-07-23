@@ -5,6 +5,7 @@
 #include "tradecore/orderbook/book_snapshot.hpp"
 #include "tradecore/orderbook/avl_tree.hpp"
 #include "tradecore/orderbook/avl_statistics.hpp"
+#include "tradecore/orderbook/flat_price_array.hpp"
 #include "tradecore/common/constants.hpp"
 #include "tradecore/common/assert.hpp"
 #include <cstdint>
@@ -47,6 +48,11 @@ public:
     // Step 2: Insert a created level into the AVL tree and update BBO.
     void insert_level(Index idx, PriceLevelPool<MaxLevels>& pool,
                       AVLStatistics& stats) noexcept {
+        PriceLevel* lvl = pool.at(idx);
+        
+        // Cache in FlatPriceArray for O(1) access
+        dense_levels_.insert(lvl->price, idx);
+
         avl_root_ = avl::insert(pool, avl_root_, idx, stats);
         ++level_count_;
         ++stats.levels_created;
@@ -58,10 +64,16 @@ public:
     void remove_level(Index idx, PriceLevelPool<MaxLevels>& pool,
                       AVLStatistics& stats) noexcept {
         TRADECORE_ASSERT(level_count_ > 0);
+        PriceLevel* lvl = pool.at(idx);
+
+        // Remove from Dense Array
+        dense_levels_.remove(lvl->price);
+
         const bool was_bbo = (idx == bbo_idx_);
 
         avl_root_ = avl::remove(pool, avl_root_, idx, stats);
         --level_count_;
+        ++stats.levels_destroyed;
 
         if (was_bbo) {
             // BBO removed: find new BBO from tree
@@ -113,6 +125,13 @@ public:
     // Find level by price — O(log N)
     [[nodiscard]] Index find_by_price(const PriceLevelPool<MaxLevels>& pool,
                                       uint32_t price) const noexcept {
+        // Attempt O(1) fetch from Dense Price Array
+        Index dense_idx = dense_levels_.find(price);
+        if (dense_idx != kInvalid) {
+            return dense_idx;
+        }
+
+        // Fallback to O(log N) AVL traversal if outside tick array bounds
         return avl::find(pool, avl_root_, price);
     }
 
@@ -152,6 +171,9 @@ private:
     uint32_t    bbo_idx_{kInvalid};
     std::size_t level_count_{0};
     uint8_t     side_;
+
+    // Dense Price Array for O(1) cache-aligned top-of-book lookup
+    FlatPriceArray<10000> dense_levels_;
 };
 
 } // namespace tradecore::orderbook
