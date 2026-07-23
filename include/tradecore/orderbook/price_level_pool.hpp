@@ -47,6 +47,10 @@ public:
         return Capacity;
     }
 
+    [[nodiscard]] const PriceLevel* raw_data() const noexcept {
+        return pool_.raw_data();
+    }
+
     void reset() noexcept { pool_.reset(); }
 
 private:

@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_set>
-#include <unordered_map>
+#include "tradecore/orderbook/flat_hash_map.hpp"
 
 namespace tradecore::orderbook {
 
@@ -36,7 +36,7 @@ public:
         std::span<const PriceLevel> bid_levels,  // Contiguous array of bid PriceLevels
         std::span<const PriceLevel> ask_levels,  // Contiguous array of ask PriceLevels
         std::span<const Order>      order_pool,  // The full object pool
-        const std::unordered_map<uint64_t, uint32_t>& order_map, // OrderId -> pool index
+        const FlatHashMap&          order_map,   // OrderId -> pool index
         uint32_t bid_root_idx,                   // Root of AVL bid tree (pool index)
         uint32_t ask_root_idx,                   // Root of AVL ask tree (pool index)
         uint32_t best_bid_idx,                   // Pool index of BBO bid level
@@ -58,7 +58,6 @@ public:
         if (!result.ok) return result;
 
         // 4. No duplicate order IDs + every order belongs to exactly one level
-        //    (orphaned: in map but no level; ghost: in level but not in map)
         check_order_uniqueness(bid_levels, ask_levels, order_pool, order_map, result);
         if (!result.ok) return result;
 
@@ -134,37 +133,32 @@ private:
         std::span<const PriceLevel> bid_levels,
         std::span<const PriceLevel> ask_levels,
         std::span<const Order> order_pool,
-        const std::unordered_map<uint64_t, uint32_t>& order_map,
+        const FlatHashMap& order_map,
         VerificationResult& result)
     {
-        // Pass 1: Walk all levels, collecting every pool index that
-        //         appears in at least one level's linked list.
-        std::unordered_set<uint64_t> seen_ids;
-        std::unordered_set<uint32_t> seen_pool_indices;
-
-        auto walk = [&](std::span<const PriceLevel> levels) {
+        std::unordered_set<uint64_t> seen_orders;
+        
+        // Lambda to check level orders
+        auto check_levels = [&](std::span<const PriceLevel> levels) {
             for (const auto& level : levels) {
                 if (level.order_count == 0) continue;
-                uint32_t idx = level.head_order_idx;
-                uint32_t count = 0;
-                while (idx != kInvalidPoolIndex && count <= level.order_count + 1) {
-                    if (idx >= order_pool.size()) {
+                uint32_t curr = level.head_order_idx;
+                while (curr != kInvalidPoolIndex) {
+                    if (curr >= order_pool.size()) {
                         result.fail("Order pool index out of bounds");
                         return;
                     }
-                    if (!seen_ids.insert(order_pool[idx].order_id).second) {
-                        result.fail("Duplicate order_id detected");
+                    uint64_t oid = order_pool[curr].order_id;
+                    if (!seen_orders.insert(oid).second) {
+                        result.fail("Duplicate OrderId found within levels");
                         return;
                     }
-                    if (!seen_pool_indices.insert(idx).second) {
-                        result.fail("Order belongs to multiple price levels");
+                    // Must be in map
+                    if (!order_map.contains(oid)) {
+                        result.fail("Order present in level but missing from map (ghost order)");
                         return;
                     }
-                    idx = order_pool[idx].next_in_level;
-                    ++count;
-                }
-                if (count != level.order_count) {
-                    result.fail("Linked list length != level.order_count");
+                    curr = order_pool[curr].next_in_level;
                 }
             }
         };

@@ -99,6 +99,12 @@ public:
         return &slots_[idx].object;
     }
 
+    // Expose raw data array for span creation (used by verifier)
+    // Warning: some slots may contain next_free indices instead of initialized objects.
+    [[nodiscard]] const T* raw_data() const noexcept {
+        return reinterpret_cast<const T*>(slots_.data());
+    }
+
 private:
     union Slot {
         T object;
