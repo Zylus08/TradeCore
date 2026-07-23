@@ -12,6 +12,7 @@ add_executable(tradecore_tests
     unit/orderbook/test_book_snapshot.cpp
     unit/orderbook/test_phase3a.cpp
     unit/orderbook/test_phase3b.cpp
+    unit/orderbook/test_phase3d.cpp
 )
 
 target_link_libraries(tradecore_tests PRIVATE tradecore gtest_main)

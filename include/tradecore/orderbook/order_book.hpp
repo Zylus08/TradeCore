@@ -228,6 +228,12 @@ private:
 #endif
     }
 
+    // Accessors for Replay Digest and Diagnostics
+    [[nodiscard]] const BookSide<MaxLevels>& bids() const noexcept { return bids_; }
+    [[nodiscard]] const BookSide<MaxLevels>& asks() const noexcept { return asks_; }
+    [[nodiscard]] const PriceLevelPool<MaxLevels>& level_pool() const noexcept { return level_pool_; }
+    [[nodiscard]] const OrderPool<MaxOrders>& order_pool() const noexcept { return order_pool_; }
+
 private:
     OrderPool<MaxOrders>      order_pool_;
     PriceLevelPool<MaxLevels> level_pool_;
