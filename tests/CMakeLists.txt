@@ -14,6 +14,8 @@ add_executable(tradecore_tests
     unit/orderbook/test_phase3b.cpp
     unit/orderbook/test_phase3d.cpp
     unit/matching/test_matching_engine.cpp
+    unit/replay/test_replay_engine.cpp
+    unit/telemetry/test_telemetry.cpp
 )
 
 target_link_libraries(tradecore_tests PRIVATE tradecore gtest_main)
