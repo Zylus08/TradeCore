@@ -71,14 +71,21 @@ public:
         check_order_map_consistency(bid_levels, ask_levels, order_pool, order_map, result);
         if (!result.ok) return result;
 
-        // 7. AVL balance factors valid for both trees
-        check_avl_invariants(bid_levels, bid_root_idx, result);
-        check_avl_invariants(ask_levels, ask_root_idx, result);
+        // 7. AVL topology valid (height matches computed, parent pointers correct, cycle-free)
+        std::unordered_set<uint32_t> visited;
+        check_avl_topology(bid_levels, bid_root_idx, kInvalidPoolIndex, visited, result);
+        visited.clear();
+        check_avl_topology(ask_levels, ask_root_idx, kInvalidPoolIndex, visited, result);
         if (!result.ok) return result;
 
         // 8. FIFO ordering (timestamp of head <= timestamp of tail for every level)
         check_fifo_ordering(bid_levels, order_pool, result);
         check_fifo_ordering(ask_levels, order_pool, result);
+        if (!result.ok) return result;
+
+        // 9. BBO Cache Verification
+        check_bbo_cache(bid_levels, bid_root_idx, best_bid_idx, false, result);
+        check_bbo_cache(ask_levels, ask_root_idx, best_ask_idx, true, result);
 #endif
 
         return result;
@@ -232,9 +239,11 @@ private:
         }
     }
 
-    static int check_avl_height(
+    static int check_avl_topology(
         std::span<const PriceLevel> levels,
         uint32_t idx,
+        uint32_t expected_parent,
+        std::unordered_set<uint32_t>& visited,
         VerificationResult& result)
     {
         if (idx == kInvalidPoolIndex) return 0;
@@ -242,28 +251,60 @@ private:
             result.fail("AVL child index out of bounds");
             return -1;
         }
+        if (!visited.insert(idx).second) {
+            result.fail("AVL tree contains cycles (node reachable multiple times)");
+            return -1;
+        }
+        const auto& node = levels[idx].node;
 
-        int left_h  = check_avl_height(levels, levels[idx].left_child, result);
-        int right_h = check_avl_height(levels, levels[idx].right_child, result);
+        if (node.parent != expected_parent) {
+            result.fail("AVL parent pointer mismatch");
+            return -1;
+        }
+
+        int left_h  = check_avl_topology(levels, node.left, idx, visited, result);
+        int right_h = check_avl_topology(levels, node.right, idx, visited, result);
 
         if (!result.ok) return -1;
 
-        int balance = right_h - left_h;
-        if (levels[idx].balance != static_cast<int8_t>(balance)) {
-            result.fail("AVL node has incorrect stored balance factor");
+        int computed_height = 1 + std::max(left_h, right_h);
+        if (node.height != computed_height) {
+            result.fail("AVL stored height does not match computed height");
         }
+
+        int balance = right_h - left_h;
         if (balance < -1 || balance > 1) {
             result.fail("AVL balance factor out of range [-1, 1]");
         }
-        return 1 + std::max(left_h, right_h);
+        return computed_height;
     }
 
-    static void check_avl_invariants(
+    static void check_bbo_cache(
         std::span<const PriceLevel> levels,
         uint32_t root_idx,
+        uint32_t bbo_idx,
+        bool is_ask,
         VerificationResult& result)
     {
-        check_avl_height(levels, root_idx, result);
+        if (root_idx == kInvalidPoolIndex) {
+            if (bbo_idx != kInvalidPoolIndex) result.fail("BBO cache is set but tree is empty");
+            return;
+        }
+        if (bbo_idx == kInvalidPoolIndex) {
+            result.fail("BBO cache is invalid but tree is not empty");
+            return;
+        }
+
+        uint32_t curr = root_idx;
+        if (is_ask) {
+            while (levels[curr].node.left != kInvalidPoolIndex) curr = levels[curr].node.left;
+        } else {
+            while (levels[curr].node.right != kInvalidPoolIndex) curr = levels[curr].node.right;
+        }
+
+        if (curr != bbo_idx) {
+            result.fail("BBO cache does not match tree min/max");
+        }
     }
 
     static void check_fifo_ordering(

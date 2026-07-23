@@ -37,12 +37,18 @@ static bool verify_avl(const Pool& pool, uint32_t idx, uint32_t min, uint32_t ma
     if (idx == kInvalidPoolIndex) return true;
     const auto* node = pool.at(idx);
     if (node->price <= min || node->price >= max) return false;
-    int8_t expected_bal = static_cast<int8_t>(
-        avl::height(pool, node->right_child) - avl::height(pool, node->left_child));
-    if (node->balance != expected_bal) return false;
-    if (node->balance < -1 || node->balance > 1) return false;
-    return verify_avl(pool, node->left_child, min, node->price) &&
-           verify_avl(pool, node->right_child, node->price, max);
+    
+    int32_t left_h = (node->node.left == kInvalidPoolIndex) ? 0 : pool.at(node->node.left)->node.height;
+    int32_t right_h = (node->node.right == kInvalidPoolIndex) ? 0 : pool.at(node->node.right)->node.height;
+    int32_t expected_h = 1 + std::max(left_h, right_h);
+    
+    if (node->node.height != expected_h) return false;
+    
+    int32_t balance = right_h - left_h;
+    if (balance < -1 || balance > 1) return false;
+    
+    return verify_avl(pool, node->node.left, min, node->price) &&
+           verify_avl(pool, node->node.right, node->price, max);
 }
 
 static bool verify_avl(const Pool& pool, uint32_t root) {
@@ -326,4 +332,54 @@ TEST(AVLStatisticsTest, TotalRotations) {
     insert_prices(side, pool, stats, {400, 500});       // RR
     EXPECT_EQ(stats.total_rotations(), stats.ll_rotations + stats.rr_rotations +
                                        stats.lr_rotations + stats.rl_rotations);
+    EXPECT_EQ(stats.levels_created, 5U);
+    EXPECT_GT(stats.maximum_height, 0U);
+}
+
+// ============================================================================
+// Adversarial Stress Tests
+// ============================================================================
+
+TEST(AVLTreeTest, AdversarialIncreasing) {
+    Pool pool; Side side(0); AVLStatistics stats;
+    for (uint32_t p = 1; p <= 1000; ++p) {
+        uint32_t idx = side.create_level(p * 10, pool);
+        side.insert_level(idx, pool, stats);
+        ASSERT_TRUE(verify_avl(pool, side.avl_root()));
+    }
+    EXPECT_EQ(pool.at(side.bbo_idx())->price, 10000U); // Max price for bids
+}
+
+TEST(AVLTreeTest, AdversarialDecreasing) {
+    Pool pool; Side side(1); AVLStatistics stats;
+    for (uint32_t p = 1000; p >= 1; --p) {
+        uint32_t idx = side.create_level(p * 10, pool);
+        side.insert_level(idx, pool, stats);
+        ASSERT_TRUE(verify_avl(pool, side.avl_root()));
+    }
+    EXPECT_EQ(pool.at(side.bbo_idx())->price, 10U); // Min price for asks
+}
+
+TEST(AVLTreeTest, AdversarialAlternatingHighLow) {
+    Pool pool; Side side(0); AVLStatistics stats;
+    uint32_t low = 100, high = 100000;
+    for (int i = 0; i < 500; ++i) {
+        uint32_t idx1 = side.create_level(low++, pool);
+        side.insert_level(idx1, pool, stats);
+        uint32_t idx2 = side.create_level(high--, pool);
+        side.insert_level(idx2, pool, stats);
+    }
+    ASSERT_TRUE(verify_avl(pool, side.avl_root()));
+}
+
+TEST(AVLTreeTest, RepeatedInsertDeleteSamePrice) {
+    Pool pool; Side side(0); AVLStatistics stats;
+    for (int i = 0; i < 1000; ++i) {
+        uint32_t idx = side.create_level(500, pool);
+        side.insert_level(idx, pool, stats);
+        ASSERT_TRUE(verify_avl(pool, side.avl_root()));
+        side.remove_and_destroy_level(idx, pool, stats);
+        ASSERT_TRUE(verify_avl(pool, side.avl_root()));
+    }
+    EXPECT_EQ(side.level_count(), 0U);
 }

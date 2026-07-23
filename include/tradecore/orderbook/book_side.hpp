@@ -35,10 +35,10 @@ public:
         lvl->order_count    = 0;
         lvl->head_order_idx = kInvalid;
         lvl->tail_order_idx = kInvalid;
-        lvl->left_child     = kInvalid;
-        lvl->right_child    = kInvalid;
-        lvl->parent         = kInvalid;
-        lvl->balance        = 0;
+        lvl->node.left      = kInvalid;
+        lvl->node.right     = kInvalid;
+        lvl->node.parent    = kInvalid;
+        lvl->node.height    = 1;
         lvl->side           = side_;
 
         return pool.index_of(lvl);
@@ -49,6 +49,7 @@ public:
                       AVLStatistics& stats) noexcept {
         avl_root_ = avl::insert(pool, avl_root_, idx, stats);
         ++level_count_;
+        ++stats.levels_created;
         update_bbo_on_insert(pool, idx);
         avl::update_stats_height(pool, avl_root_, stats);
     }
@@ -72,15 +73,27 @@ public:
     }
 
     // Step 4: Return pool slot. Must be called after remove_level.
-    void destroy_level(Index idx, PriceLevelPool<MaxLevels>& pool) noexcept {
+    void destroy_level(Index idx, PriceLevelPool<MaxLevels>& pool, AVLStatistics& stats) noexcept {
+#ifndef NDEBUG
+        // Pool Recycling Checks
+        const auto* lvl = pool.at(idx);
+        TRADECORE_ASSERT(lvl->order_count == 0);
+        TRADECORE_ASSERT(lvl->total_qty == 0);
+        TRADECORE_ASSERT(lvl->head_order_idx == kInvalid);
+        TRADECORE_ASSERT(lvl->tail_order_idx == kInvalid);
+        TRADECORE_ASSERT(lvl->node.left == kInvalid);
+        TRADECORE_ASSERT(lvl->node.right == kInvalid);
+        // parent could be anything because it's spliced out, but the node itself is detached
+#endif
         pool.deallocate(pool.at(idx));
+        ++stats.levels_recycled;
     }
 
     // Combined convenience: remove from tree AND free pool slot.
     void remove_and_destroy_level(Index idx, PriceLevelPool<MaxLevels>& pool,
                                   AVLStatistics& stats) noexcept {
         remove_level(idx, pool, stats);
-        destroy_level(idx, pool);
+        destroy_level(idx, pool, stats);
     }
 
     // ---- Read-only accessors -------------------------------------------------------

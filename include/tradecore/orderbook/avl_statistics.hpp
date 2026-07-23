@@ -13,13 +13,17 @@ struct AVLStatistics {
     uint64_t rl_rotations{0};   // Right-left double rotations
     uint64_t insertions{0};     // Total level insertions
     uint64_t deletions{0};      // Total level deletions
+    uint64_t levels_created{0}; // Total pool slots allocated
+    uint64_t levels_recycled{0};// Total pool slots returned
     uint32_t tree_height{0};    // Updated after every mutation
+    uint32_t maximum_height{0}; // Max height observed
     double   average_depth{0.0};// Weighted average depth of all nodes
 
     void reset() noexcept {
         ll_rotations = rr_rotations = lr_rotations = rl_rotations = 0;
         insertions = deletions = 0;
-        tree_height = 0;
+        levels_created = levels_recycled = 0;
+        tree_height = maximum_height = 0;
         average_depth = 0.0;
     }
 
