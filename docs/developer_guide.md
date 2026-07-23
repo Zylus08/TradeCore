@@ -8,7 +8,7 @@ TradeCore uses CMake and requires a C++20 compliant compiler (GCC 11+ or Clang 1
 
 ```bash
 # Clone the repository
-git clone https://github.com/TradeCore/TradeCore.git
+git clone https://github.com/Zylus08/TradeCore.git
 cd TradeCore
 
 # Configure and Build
